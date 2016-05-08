@@ -4,6 +4,7 @@ Implementation of Deep-Q-Learning and Double DQN for Flappy Bird using Keras/The
 
 
 Pygame implementation of Flappy Bird by - https://github.com/sourabhv/FlapPyBird
+
 Modified Flappy Bird for DQN by - https://github.com/yenchenlin1994/DeepLearningFlappyBird
 
 
