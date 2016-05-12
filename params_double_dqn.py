@@ -29,10 +29,10 @@ DISCOUNT = 0.95
 LOAD_POPULATED_QUEUE = True
 
 PRETRAINED = False
-PRETRAINED_PATH = 'saved_DDQN/weights_iter_20000'
+PRETRAINED_PATH = 'saved_DDQN/DDQN_weights_iter_320000'
 
-TRAIN_PRETRAINED = False
-TRAIN_PRETRAINED_PATH = 'saved_DDQN/weights_iter_60000'
+TRAIN_PRETRAINED = True
+TRAIN_PRETRAINED_PATH = 'saved_DDQN/DDQN_weights_iter_440000'
 
 ### Epochs when to check average scoreDigitsepochs = [10000,30000,60000,1e5]
 SAVE_QUEUE_FREQ = 30000

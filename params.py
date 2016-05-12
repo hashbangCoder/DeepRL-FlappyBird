@@ -30,10 +30,10 @@ DISCOUNT = 0.95
 LOAD_POPULATED_QUEUE = True
 
 PRETRAINED = False
-PRETRAINED_PATH = 'saved nets/weights_iter_280000'
+PRETRAINED_PATH = 'saved nets/weights_iter_000000'
 
-TRAIN_PRETRAINED = False
-TRAIN_PRETRAINED_PATH = 'saved nets/weights_iter_260000'
+TRAIN_PRETRAINED = True
+TRAIN_PRETRAINED_PATH = 'saved nets/weights_iter_420000'
 
 ### Epochs when to check average scoreDigitsepochs = [10000,30000,60000,1e5]
 SAVE_QUEUE_FREQ = 30000

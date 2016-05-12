@@ -36,11 +36,14 @@ input_shape = p.input_shape
 ## Custom loss
 def clipped_max_objective(y_true, y_pred):
 
-    y_pred = (abs(y_true)>0)*y_pred
+    coords = y_true.nonzero()[0],y_true.nonzero()[1]
+    
+    y_pred_ = y_pred[coords]
+    y_true_ = y_true[coords]
    
     #print y_pred_.eval({y_true : np.array([[3,0],[0,4],[2,0],[10,0],[0,11]]).astype('float32'), y_pred: np.arange(100,110).reshape((5,2)).astype('float32') })
     ## NO loss clipping
-    return T.mean((y_pred - y_true)**2)
+    return T.mean((y_pred_ - y_true_)**2)
 
 
 def save_queue(EXPERIENCE_MEMORY):
@@ -72,7 +75,7 @@ def get_targets(mini_batch,target_model,model):
 
     assert(target.shape[0] == p.batch_size)
     return target, train_inputs
-    
+
    
     
 def main(input_shape):
@@ -81,6 +84,7 @@ def main(input_shape):
     action_states = [[0,1],[1,0]]
     gameState = game.GameState()
     highestScore = 0
+    totScore = 0
 
     if p.TRAIN_PRETRAINED and p.LOAD_POPULATED_QUEUE:
         if not os.path.isfile(p.TRAIN_PRETRAINED_PATH):
@@ -89,14 +93,14 @@ def main(input_shape):
         model.load_weights(p.TRAIN_PRETRAINED_PATH)
         model.compile(loss = clipped_max_objective, optimizer=optim)
         print 'Loading expereince queue from disk..should take 1-2 mins...'
-        with open('double_dqn_queue.pkl','r') as f:
+        with open('saved_DDQN/double_dqn_queue.pkl','r') as f:
             EXPERIENCE_MEMORY  = cPickle.load(f)
         epsilon = EXPERIENCE_MEMORY[-1][-1]
         exp_num=int(p.TRAIN_PRETRAINED_PATH.split('_')[-1])
         updateCount = exp_num/3000
         p.POPULATE = 0
 
-    elif p.LOAD_POPULATED_QUEUE:
+    elif p.LOAD_POPULATED_QUEUE and not p.PRETRAINED:
         model.compile(loss = clipped_max_objective, optimizer=optim)
         print 'Loading expereince queue from disk..should take 1-2 mins...'
         with open('saved_DDQN/double_dqn_queue.pkl','r') as f:
@@ -109,6 +113,7 @@ def main(input_shape):
         totScore=0
     
     elif p.PRETRAINED:
+        model.compile(loss = clipped_max_objective, optimizer=optim)
         if not os.path.isfile(p.PRETRAINED_PATH):
             print 'Pretrained Weights not found. Check the path provided.'
             sys.exit(1)
@@ -213,7 +218,12 @@ def main(input_shape):
                 sys.exit()
             
             #No need to check if experience memory is full since duh, its a deque. EDIT : For memory reasons, im limiting the size
-            EXPERIENCE_MEMORY.append(tuple((input_state,action,reward,output_state,tState,epsilon)))
+            if len(EXPERIENCE_MEMORY) > 50000:
+                EXPERIENCE_MEMORY.popleft()
+                EXPERIENCE_MEMORY.append(tuple((input_state,action,reward,output_state,tState,epsilon)))
+            else:
+                EXPERIENCE_MEMORY.append(tuple((input_state,action,reward,output_state,tState,epsilon)))
+            
             print '\n\nMODE : ' +colored('TRAINING HARD *eye of the tiger theme playing in the distance*\n','blue',attrs=['bold'])+ '(%d **) EXPERIENCE # : %d\t EPSILON : %f\t ACTION:  %s\t REWARD : %s\t Q-Value : %f\t\t Game Score : %s \t Highest Score : %d\t\t Updated Target %d times...' %(len(EXPERIENCE_MEMORY),exp_num, epsilon,colored('predicted '+_act,'green',attrs=['bold']) if rand_flag==0 else 'random '+_act,rewString,nn_out.max(),colored(str(totScore),'green',attrs=['dark']) if totScore >0 else colored(str(totScore),'grey'),highestScore,updateCount) 
             
             #Get mini-batch & GRAD DESCENT!
@@ -232,9 +242,12 @@ def main(input_shape):
                  epsilon += p.EPSILON_CHANGE
 
 
-            #update target networks
+            #update target networks and write score to file
             if exp_num % p.TARGET_UPDATE_FREQ ==0:
                 target_model = deepcopy(model)
+                with open('score_details.log','a+') as f:
+                    toWrite =  '(%d **) EXPERIENCE # : %d\t EPSILON : %f\t ACTION:  %s REWARD : %s\t Q-Value : %f\tGame Score : %s \t Highest Score : %d\t Updated Target %d times...\n\n\n' %(len(EXPERIENCE_MEMORY),exp_num, epsilon,'predicted '+_act if rand_flag==0 else 'random '+_act, rewString, nn_out.max(),str(totScore) if totScore >0 else str(totScore), highestScore,updateCount)  
+                    f.write(toWrite)
                 updateCount +=1
             
 
@@ -264,7 +277,10 @@ def main(input_shape):
         else:
             print 'Queue NOT saved. Quitting...'
              
-
+    except Exception as e:
+        model.save_weights('saved_DDQN/DDQN_weights_iter_%d'%exp_num, overwrite= True)
+        print e.message
+        
 #############################################################################################################################################################################
 
 
@@ -272,20 +288,20 @@ def main(input_shape):
 
 def run_pretrained(input_state,model,action_states,gameState):
     print '\n\nLoading pretrained weights onto model...'
+   
     model.load_weights(p.PRETRAINED_PATH)
     epsilon=1
     while True:
         print 'Running pretrained model (no exploration) with weights at ', p.PRETRAINED_PATH 
                
         nn_out = model.predict(input_state,batch_size=1,verbose=0)
-        nn_action = [[0,1]] if np.argmax(nn_out) else [[1,0]]
-        action,rand_flag = select_action(nn_action+action_states,prob=[epsilon,(1-epsilon)/2,(1-epsilon)/2])
+        nn_action = [[0,0]]
+        nn_action[0][np.argmax(nn_out)] =1
+        action,rand_flag = select_action(nn_action+action_states,prob=[epsilon,(1-epsilon)*1/7,(1-epsilon)*6/7])
         rgbDisplay, reward, tState = gameState.frame_step(action)
-        #grayDisplay = (np.dot(imresize(rgbDisplay, (80,80), interp='bilinear')[:,:,:3], [0.299, 0.587, 0.114])).reshape((1,1,80,80))
         grayDisplay = (np.dot(np.fliplr(imrotate(imresize(rgbDisplay, (80,80), interp='bilinear'), -90))[:,:,:3], [0.299, 0.587, 0.114])).reshape((1,1,80,80))
-        output_state = np.append(input_state[:,1:,:,:], grayDisplay,axis=1)
+        output_state = np.append(grayDisplay,input_state[:,:p.HISTORY-1,:,:], axis=1)
         
-
 
 #############################################################################################################################################################################
 

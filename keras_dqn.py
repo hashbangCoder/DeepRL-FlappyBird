@@ -37,13 +37,18 @@ input_shape = p.input_shape
 ## Custom loss
 def clipped_max_objective(y_true, y_pred):
 
-    y_pred = (abs(y_true)>0)*y_pred
-
+    #samp_true = np.random.randint(0,2,(4,2)).astype('float32')
+    #pred_samp = np.random.rand(4,2).astype('float32')
+    coords = y_true.nonzero()[0],y_true.nonzero()[1]
+    
+    y_pred_ = y_pred[coords]
+    y_true_ = y_true[coords]
     ### Implement loss clipping    
     #return T.clip(T.mean((y_pred - y_true)**2),-1,1)
 
+    #print y_pred_.eval({y_pred:pred_samp, y_true:samp_true}), '\n',pred_samp, '\n', samp_true
     #### NO LOSS CLIPPING
-    return T.mean((y_pred - y_true)**2)
+    return T.mean((y_pred_ - y_true_)**2)
 
 
 def save_queue(EXPERIENCE_MEMORY):
@@ -70,7 +75,7 @@ def get_targets(mini_batch,target_model):
     for item in range(len(mini_batch)):
         target[item,actions[item]] = mini_batch[item][2] + p.DISCOUNT*est_values[item]*int(not mini_batch[item][-2])
     #target = np.asarray([mini_batch[item][2] + p.DISCOUNT*est_values[item]  if not mini_batch[item][-2] else mini_batch[item][2] for item in range(len(mini_batch))])
-    assert(target.shape[0] == p.batch_size)
+    #assert(target.shape[0] == p.batch_size)
 
     return target, train_inputs
     
@@ -130,6 +135,7 @@ def main(input_shape):
     #Save time by loading a populated queue
     if p.LOAD_POPULATED_QUEUE:
         with open('saved nets/saved_queue.pkl','rb') as f:
+        #with open('saved nets/saved_queue.pkl','rb') as f:
             print 'Loading expereince queue from disk..should take 1-2 mins...'
             EXPERIENCE_MEMORY = cPickle.load(f)
         if not p.TRAIN_PRETRAINED:
@@ -214,8 +220,6 @@ def main(input_shape):
             
             #predict on batch i.e. test_on_batch    
             loss = model.train_on_batch(mini_batch_inputs,targets)
-            sys.exit()
-
             print 'Loss : ' ,colored(str(loss),'cyan')
             #Tread lightly and increase thine greediness gently, for there is enough in this game for birdy's need but not for birdy's greed!
             if epsilon <= p.FINAL_EPSILON:
